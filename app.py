@@ -8,8 +8,8 @@ app = Flask(__name__)
 
 def get_db_connection():
     return mariadb.connect(
-        user='abasyal',
-        password='anuradha',
+        user='username',
+        password='password',
         host='bioed-new.bu.edu',
         port=4253,
         database='Team13'
