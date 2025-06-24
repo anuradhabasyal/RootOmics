@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Make title dynamic based on active tab -->
+  <title>Root Omics – {{ active_tab_title | default('Explorer') }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Add Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Add jQuery UI for autocomplete -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/themes/base/jquery-ui.min.css">
+  <style>
+    body {
+      padding: 0 2rem 2rem 2rem; /* Adjust padding */
+      background-color: #fffaf0; /* Cream background */
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .banner {
+      background-color: rgba(46, 125, 50, 0.1); /* pale green */
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-bottom: 1.5rem; /* Add space below banner */
+      margin-top: 1.5rem; /* Add space above banner */
+    }
+    .site-title {
+      font-family: 'Georgia', serif;
+      font-size: 3rem;
+      color: #2e7d32; /* Deep green */
+      margin: 0;
+    }
+    .filter-input { max-width: 180px; }
+    /* Common style for content inside a tab pane */
+    .tab-pane-content {
+      background-color: #fff;
+      padding: 1.5rem;
+      border: 1px solid #dee2e6; /* Match tab border */
+      border-top: none; /* Remove top border as tab handles it */
+      border-bottom-left-radius: 0.5rem;
+      border-bottom-right-radius: 0.5rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      /* Removed margin-top as it's handled by tab-content */
+    }
+    /* Ensure table container inside explorer doesn't add extra background/padding */
+    #explorer-tab-pane .table-container {
+      background-color: transparent;
+      padding: 0;
+      border: none;
+      box-shadow: none;
+      margin-top: 1.5rem;
+    }
+    /* Style for active tab to match example */
+    .nav-tabs .nav-link {
+        color: #495057; /* Standard text color for inactive tabs */
+        border-top-left-radius: 0.5rem;
+        border-top-right-radius: 0.5rem;
+    }
+    .nav-tabs .nav-link.active {
+      background-color: #fff; /* White background for active tab */
+      border-bottom-color: #fff; /* Make bottom border blend with content */
+      color: #2e7d32; /* Active tab text color */
+      font-weight: 500;
+    }
+     /* Ensure tabs themselves don't have bottom margin */
+     .nav-tabs {
+        margin-bottom: 0;
+     }
+    /* Add space for icons */
+    .nav-link i {
+        margin-right: 0.4rem;
+    }
+    /* Style for content headers within panes */
+    .content-header {
+      background-color: #e9ecef; /* Light grey header */
+      padding: 0.75rem 1.25rem;
+      margin: -1.5rem -1.5rem 1.5rem -1.5rem; /* Extend to edges of tab-pane-content */
+      border-bottom: 1px solid #dee2e6;
+      border-top-left-radius: 0rem; /* No radius here */
+      border-top-right-radius: 0rem; /* No radius here */
+      font-size: 1.25rem;
+      font-weight: 500;
+      color: #495057;
+    }
+    .content-header i {
+        margin-right: 0.5rem;
+        color: #6c757d;
+    }
+    /* Specific style for the form container */
+    .search-form-container {
+        background-color: #fff;
+        padding: 1.5rem;
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-bottom-left-radius: 0.5rem;
+        border-bottom-right-radius: 0.5rem;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    hr.pathway-divider {
+        margin: 2rem 0;
+    }
+    /* Styling for autocomplete suggestions */
+    .ui-autocomplete {
+      max-height: 200px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 9999;
+    }
+    /* Spinner for AJAX loading */
+    .spinner-container {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.7);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+    /* Ecosystem process badges */
+    .eco-badge {
+      margin: 0.1rem;
+      padding: 0.3rem 0.5rem;
+      border-radius: 0.25rem;
+      background-color: #198754;
+      color: white;
+      display: inline-block;
+      font-size: 0.8rem;
+    }
+    /* Collapsible sections for help */
+    .help-section {
+      margin-bottom: 1rem;
+    }
+    .help-section h5 {
+      cursor: pointer;
+      padding: 0.75rem;
+      background-color: #f8f9fa;
+      border-radius: 0.25rem;
+      margin-bottom: 0.5rem;
+    }
+    .help-section h5:hover {
+      background-color: #e9ecef;
+    }
+    .help-section .collapse-content {
+      padding: 0.75rem;
+      border-left: 3px solid #2e7d32;
+      margin-left: 0.5rem;
+    }
+    #no-results-message {
+      text-align: center;
+      font-style: italic;
+      color: #6c757d;
+      padding: 2rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Banner with leaf and title -->
+    <div class="d-flex align-items-center justify-content-center banner">
+      <span style="font-size: 2.5rem; line-height: 1; margin-right: 0.75rem;">🍃</span>
+      <h1 class="site-title">Root Omics</h1>
+    </div>
+
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'introduction' %}active{% endif %}" id="intro-tab" href="{{ url_for('introduction') }}" role="tab">
+          <i class="fas fa-book-open"></i>Introduction
+        </a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'explorer' %}active{% endif %}" id="explorer-tab" href="{{ url_for('explorer') }}" role="tab">
+          <i class="fas fa-search"></i>Explorer
+        </a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'download' %}active{% endif %}" id="download-tab" href="{{ url_for('download_page') }}" role="tab">
+          <i class="fas fa-download"></i>Download
+        </a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'contact' %}active{% endif %}" id="contact-tab" href="{{ url_for('contact') }}" role="tab">
+          <i class="fas fa-envelope"></i>Contact
+        </a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'help' %}active{% endif %}" id="help-tab" href="{{ url_for('help_page') }}" role="tab">
+          <i class="fas fa-question-circle"></i>Help
+        </a>
+      </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="mainTabsContent">
+      <!-- Introduction Tab Pane -->
+      {% if active_tab == 'introduction' %}
+      <div class="tab-pane fade show active" id="intro-tab-pane" role="tabpanel">
+        <div class="tab-pane-content">
+           <h2 class="content-header"><i class="fas fa-book-open"></i>What is Root Omics?</h2>
+           <p>Root Omics is a functional enzyme database for microbial ecology research by  Bhatnagar Lab at Boston University. It catalogs soil nutrient-cycling enzymes involved in carbon, nitrogen, and phosphorus transformations, with detailed annotations (EC, KO, GO) and pathway mappings. By integrating genomic and experimental data, it helps researchers assess enzyme distribution, pathway completeness, and functional potential across diverse soil microbial communities.</p>
+           <p>Developed by Team 13(Anuradha Basyal, Adithi H Natraaj, Shivani Pimparkar) at Boston University (BF768, Spring 2025) under Dr. Gary Benson, Root Omics supports bioinformatics workflows, genomic analyses, and environmental functional gene studies, enabling insights into biogeochemical cycling and microbial ecosystem functions.</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Explorer Tab Pane -->
+      {% if active_tab == 'explorer' %}
+      <div class="tab-pane fade show active" id="explorer-tab-pane" role="tabpanel">
+        <!-- Search form -->
+        <form id="searchForm" class="row g-3 align-items-end search-form-container">
+          <div class="col-auto">
+            <label class="form-label">Protein</label>
+            <input class="form-control filter-input autocomplete" id="protein-search" type="text" name="name"
+                   value="{{ filters.name }}" placeholder="e.g. oxidase" data-field="protein_name">
+          </div>
+          <div class="col-auto">
+            <label class="form-label">Enzyme Type</label>
+            <input class="form-control filter-input autocomplete" id="enzyme-search" type="text" name="enzyme_type"
+                   value="{{ filters.enzyme_type }}" placeholder="e.g. oxidase" data-field="enzyme_type">
+          </div>
+          <div class="col-auto">
+            <label class="form-label">EC #</label>
+            <input class="form-control filter-input" type="text" name="ec"
+                   value="{{ filters.ec }}" placeholder="e.g. 2.7">
+          </div>
+          <div class="col-auto">
+            <label class="form-label">KO #</label>
+            <input class="form-control filter-input" type="text" name="ko"
+                   value="{{ filters.ko }}" placeholder="e.g. K00844">
+          </div>
+          <div class="col-auto">
+            <label class="form-label">GO term</label>
+            <input class="form-control filter-input" type="text" name="go"
+                   value="{{ filters.go }}" placeholder="e.g. GO:0004672">
+          </div>
+          <div class="col-auto">
+            <label class="form-label">KEGG</label>
+            <input class="form-control filter-input" type="text" name="kegg"
+                   value="{{ filters.kegg }}" placeholder="e.g. map00010">
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-warning" id="search-btn">Search</button>
+            <button type="button" id="resetBtn" class="btn btn-outline-secondary">Reset</button>
+          </div>
+        </form>
+
+        <!-- Data table & Pathways Container -->
+        <div class="tab-pane-content">
+          <h2 class="content-header"><i class="fas fa-table"></i>Results</h2>
+          <div id="results-container">
+            <div class="table-responsive">
+              <table class="table table-striped table-hover align-middle mb-0" id="results-table">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Protein Name</th>
+                    <th>Enzyme Type</th>
+                    <th>EC Numbers</th>
+                    <th>KO Numbers</th>
+                    <th>GO Terms</th>
+                    <th>KEGG Pathways</th>
+                    <th>CAZyme Classes</th>
+                    <th>Ecosystem Processes</th>
+                  </tr>
+                </thead>
+                <tbody id="results-tbody">
+                  <tr>
+                    <td colspan="8" class="text-center fst-italic text-muted py-3">
+                      Enter search criteria above to view results.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Pathway diagrams -->
+          <hr class="pathway-divider">
+          <h2 class="content-header"><i class="fas fa-project-diagram"></i>Pathway Maps</h2>
+          <div id="pathway-container">
+            <p class="fst-italic text-muted" id="pathway-message">Enter search criteria (especially EC numbers) to view relevant pathway maps with highlighted enzymes. Common pathways like Glycolysis, Nitrogen Metabolism, and TCA Cycle will be shown.</p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Download Tab Pane -->
+      {% if active_tab == 'download' %}
+      <div class="tab-pane fade show active" id="download-tab-pane" role="tabpanel">
+        <div class="tab-pane-content">
+          <h2 class="content-header"><i class="fas fa-download"></i>Download Your Data</h2>
+          <p>Export the current view (including any filters applied on the Explorer tab) as CSV or Excel:</p>
+          <a href="{{ url_for('download_data', fmt='csv', **filters) }}" class="btn btn-outline-primary me-2">
+            <i class="fas fa-file-csv"></i> Download CSV
+          </a>
+          <a href="{{ url_for('download_data', fmt='xlsx', **filters) }}" class="btn btn-outline-success">
+            <i class="fas fa-file-excel"></i> Download XLSX
+          </a>
+          <p class="mt-3 text-muted"><small>Note: Downloads reflect the filters currently active in the URL (set via the <a href="{{ url_for('explorer') }}">Explorer</a> tab). If you haven't searched, this will download all data.</small></p>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Contact Tab Pane -->
+      {% if active_tab == 'contact' %}
+      <div class="tab-pane fade show active" id="contact-tab-pane" role="tabpanel">
+        <div class="tab-pane-content">
+          <h2 class="content-header"><i class="fas fa-envelope"></i>Get in Touch</h2>
+          <p>Have a suggestion, new dataset, or improvement for Root Omics? Fill out the form below and Dr. Jenny will get back to you.</p>
+          <form action="mailto:jmbhat@bu.edu?subject=Root Omics Feedback" method="post" enctype="text/plain">
+            <div class="mb-3">
+              <label for="contactName" class="form-label">Your Name</label>
+              <input type="text" class="form-control" id="contactName" name="Name" placeholder="e.g. Alex Doe" required>
+            </div>
+            <div class="mb-3">
+              <label for="contactEmail" class="form-label">Your Email</label>
+              <input type="email" class="form-control" id="contactEmail" name="Email" placeholder="e.g. alice@example.com" required>
+            </div>
+            <div class="mb-3">
+              <label for="contactMessage" class="form-label">Message</label>
+              <textarea class="form-control" id="contactMessage" name="Message" rows="4" placeholder="Hello Dr. Jenny, I'd like to suggest adding the xyz pathway..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-success"><i class="fas fa-paper-plane"></i> Send Message</button>
+            <small class="text-muted d-block mt-2">(This will open your default email client)</small>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Help Tab Pane -->
+      {% if active_tab == 'help' %}
+      <div class="tab-pane fade show active" id="help-tab-pane" role="tabpanel">
+        <div class="tab-pane-content">
+          <h2 class="content-header"><i class="fas fa-question-circle"></i>Help Center</h2>
+          <p>Quick tips to get the most out of Root Omics:</p>
+          
+          <!-- Help sections with collapsible content -->
+          <div class="help-section">
+            <h5 data-bs-toggle="collapse" data-bs-target="#search-tips">
+              <i class="fas fa-search me-2"></i>Search Tips
+              <i class="fas fa-chevron-down float-end"></i>
+            </h5>
+                        <div id="search-tips" class="collapse show collapse-content">
+              <ul>
+                <li><strong>Partial matching</strong>: Enter just part of a name (e.g., "oxidase" instead of "cytochrome oxidase")</li>
+                <li><strong>EC number searching</strong>: You can search by full EC number (e.g., 1.1.1.1) or partial (e.g., 1.1 to find all in that class)</li>
+                <li><strong>Autocomplete</strong>: Use the autocomplete feature for protein names and enzyme types</li>
+                <li><strong>Reset button</strong>: Clear all filters to start a new search</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="help-section">
+            <h5 data-bs-toggle="collapse" data-bs-target="#annotation-guide">
+              <i class="fas fa-tag me-2"></i>Understanding Annotations
+              <i class="fas fa-chevron-down float-end"></i>
+            </h5>
+            <div id="annotation-guide" class="collapse collapse-content">
+              <ul>
+                <li><strong>EC Numbers</strong>: Enzyme Commission numbers that classify enzymes by the reactions they catalyze</li>
+                <li><strong>KO Numbers</strong>: KEGG Orthology identifiers linking to orthologous genes in KEGG</li>
+                <li><strong>GO Terms</strong>: Gene Ontology terms describing molecular function, biological process, or cellular component</li>
+                <li><strong>KEGG Pathways</strong>: Metabolic pathways where these enzymes function</li>
+                <li><strong>CAZyme Classes</strong>: Carbohydrate-Active enzyme classifications</li>
+                <li><strong>Ecosystem Processes</strong>: Broader biogeochemical processes these enzymes contribute to</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="help-section">
+            <h5 data-bs-toggle="collapse" data-bs-target="#pathway-viz">
+              <i class="fas fa-project-diagram me-2"></i>Pathway Visualization
+              <i class="fas fa-chevron-down float-end"></i>
+            </h5>
+            <div id="pathway-viz" class="collapse collapse-content">
+              <p>The integrated KEGG pathway maps highlight enzymes from your search results in bright green. This helps you:</p>
+              <ul>
+                <li>Visualize where your enzymes fit within metabolic pathways</li>
+                <li>Identify pathway completeness (look for gaps in highlighted enzymes)</li>
+                <li>Explore related enzymes that might be relevant to your research</li>
+              </ul>
+              <p>For the best visualization, search by EC numbers or protein names of related enzymes.</p>
+            </div>
+          </div>
+          
+          <div class="help-section">
+            <h5 data-bs-toggle="collapse" data-bs-target="#download-help">
+              <i class="fas fa-download me-2"></i>Download Options
+              <i class="fas fa-chevron-down float-end"></i>
+            </h5>
+            <div id="download-help" class="collapse collapse-content">
+              <p>From the Download tab, you can export your filtered data in two formats:</p>
+              <ul>
+                <li><strong>CSV</strong>: Standard comma-separated values format compatible with Excel, R, Python, etc.</li>
+                <li><strong>XLSX</strong>: Native Excel format with proper formatting</li>
+              </ul>
+              <p>The download will include all columns and rows matching your current search filters. If no filters are applied, the entire database will be downloaded.</p>
+            </div>
+          </div>
+          
+          <div class="help-section">
+            <h5 data-bs-toggle="collapse" data-bs-target="#faq-section">
+              <i class="fas fa-question me-2"></i>Frequently Asked Questions
+              <i class="fas fa-chevron-down float-end"></i>
+            </h5>
+            <div id="faq-section" class="collapse collapse-content">
+              <p><strong>Q: How often is the database updated?</strong><br>
+                 A: Root Omics is updated quarterly with new enzymes and annotations from published research.</p>
+              
+              <p><strong>Q: Can I suggest additions to the database?</strong><br>
+                 A: Yes! Please use the Contact form to submit suggestions for new enzymes or pathways.</p>
+              
+              <p><strong>Q: How do I cite Root Omics in my research?</strong><br>
+                 A: Please cite: "Bhatnagar et al. (2025). Root Omics: A functional enzyme database for soil microbial ecology. Boston University."</p>
+              
+              <p><strong>Q: Why can't I see all pathway maps?</strong><br>
+                 A: We currently focus on key nutrient cycling pathways. More will be added in future updates.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Loading spinner -->
+  <div class="spinner-container">
+    <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    $(document).ready(function() {
+      // Reset button - clear form and redirect to base explorer URL
+      $("#resetBtn").click(function() {
+        $("#searchForm input").val('');
+        performSearch(); // Run search with empty values
+      });
+
+      // AJAX search function
+      function performSearch() {
+        // Show loading spinner
+        $(".spinner-container").css("display", "flex");
+        
+        // Collect form data
+        let formData = {};
+        $("#searchForm input").each(function() {
+          formData[$(this).attr('name')] = $(this).val();
+        });
+        
+        // Make AJAX request
+        $.ajax({
+          url: "{{ url_for('search_data') }}",
+          data: formData,
+          dataType: "json",
+          success: function(data) {
+            // Update URL with search parameters without refreshing
+            let searchParams = new URLSearchParams();
+            for (let key in formData) {
+              if (formData[key]) {
+                searchParams.set(key, formData[key]);
+              }
+            }
+            let newUrl = window.location.pathname;
+            if (searchParams.toString()) {
+              newUrl += '?' + searchParams.toString();
+            }
+            window.history.pushState({}, '', newUrl);
+            
+            // Update results table
+            updateResultsTable(data.results);
+            
+            // Update pathway section
+            updatePathwaySection(data.highlighted_ecs, data.pathway_ids);
+            
+            // Hide spinner
+            $(".spinner-container").css("display", "none");
+          },
+          error: function() {
+            alert("Error retrieving data. Please try again.");
+            $(".spinner-container").css("display", "none");
+          }
+        });
+      }
+      
+      // Update results table with data from AJAX response
+      function updateResultsTable(results) {
+        const tbody = $("#results-tbody");
+        tbody.empty();
+        
+        if (results && results.length > 0) {
+          results.forEach(function(row) {
+            let tr = $("<tr>");
+            
+            tr.append($("<td>").text(row.Protein_name));
+            tr.append($("<td>").text(row.Enzyme_Type));
+            tr.append($("<td>").text(row.EC_numbers));
+            
+            // KO Numbers with links
+            let koCell = $("<td>");
+            if (row.KO_Numbers) {
+              let koNumbers = row.KO_Numbers.split(',');
+              koNumbers.forEach(function(ko, index) {
+                let koClean = ko.trim();
+                if (koClean) {
+                  let koLink = $("<a>").attr("href", "https://www.kegg.jp/entry/" + koClean)
+                                       .attr("target", "_blank")
+                                       .text(koClean);
+                  koCell.append(koLink);
+                  if (index < koNumbers.length - 1) {
+                    koCell.append(", ");
+                  }
+                }
+              });
+            }
+            tr.append(koCell);
+            
+            // GO Terms with links
+            let goCell = $("<td>");
+            if (row.GO_terms) {
+              let goTerms = row.GO_terms.split(',');
+              goTerms.forEach(function(go, index) {
+                let goClean = go.trim();
+                if (goClean) {
+                  let goLink = $("<a>").attr("href", goClean)
+                                       .attr("target", "_blank")
+                                       .text("View");
+                  goCell.append(goLink);
+                  if (index < goTerms.length - 1) {
+                    goCell.append(", ");
+                  }
+                }
+              });
+            }
+            tr.append(goCell);
+            
+            // KEGG Pathways with links
+            let pathwayCell = $("<td>");
+            if (row.Pathways && row.Pathways.length > 0) {
+              row.Pathways.forEach(function(path, index) {
+                let pathClean = path.trim();
+                if (pathClean) {
+                  let pathLink = $("<a>").attr("href", "https://www.kegg.jp/entry/" + pathClean)
+                                         .attr("target", "_blank")
+                                         .text("View");
+                  pathwayCell.append(pathLink);
+                  if (index < row.Pathways.length - 1) {
+                    pathwayCell.append(", ");
+                  }
+                }
+              });
+            }
+            tr.append(pathwayCell);
+            
+            // CAZyme Classes
+            tr.append($("<td>").text(row.CAZyme_Classes ? row.CAZyme_Classes.replace(',', ' ') : ''));
+            
+            // Ecosystem Processes as badges
+            let ecosystemCell = $("<td>");
+            if (row.Ecosystem_Processes && row.Ecosystem_Processes.length > 0) {
+              row.Ecosystem_Processes.forEach(function(process) {
+                let processClean = process.trim();
+                if (processClean) {
+                  let badge = $("<span>").addClass("badge bg-success me-1").text(processClean);
+                  ecosystemCell.append(badge);
+                }
+              });
+            }
+            tr.append(ecosystemCell);
+            
+            tbody.append(tr);
+          });
+        } else {
+          tbody.html(`<tr><td colspan="8" class="text-center fst-italic text-muted py-3">
+            No results found for the current filters. Try broadening your search or click Reset.
+          </td></tr>`);
+        }
+      }
+      
+      // Update pathway section with EC numbers and pathway maps
+      function updatePathwaySection(highlighted_ecs, pathway_ids) {
+        const container = $("#pathway-container");
+        container.empty();
+        
+        if (highlighted_ecs) {
+          container.append(`<p class="mb-3">Displaying relevant KEGG pathways with matching EC numbers highlighted (EC: ${highlighted_ecs}).</p>`);
+          
+          for (let name in pathway_ids) {
+            let pid = pathway_ids[name];
+            let div = $("<div>").addClass("mb-4");
+            div.append($("<h4>").text(`${name} (map${pid})`));
+            
+            let iframe = $("<iframe>")
+              .attr("src", `https://www.kegg.jp/kegg-bin/show_pathway?map${pid}/ec:${highlighted_ecs.replace(/,/g, '+ec:')}`)
+              .attr("width", "100%")
+              .attr("height", "600")
+              .attr("frameborder", "0")
+              .css("border", "1px solid #ccc");
+            
+            div.append(iframe);
+            container.append(div);
+          }
+        } else {
+          container.append(`<p class="fst-italic text-muted">Enter search criteria (especially EC numbers) to view relevant pathway maps with highlighted enzymes. Common pathways like Glycolysis, Nitrogen Metabolism, and TCA Cycle will be shown.</p>`);
+        }
+      }
+      
+      // Handle search button click
+      $("#search-btn").click(function() {
+        performSearch();
+      });
+      
+      // Autocomplete for protein names and enzyme types
+      $(".autocomplete").each(function() {
+        let inputField = $(this);
+        let fieldType = inputField.data("field");
+        
+        inputField.autocomplete({
+          source: function(request, response) {
+            $.ajax({
+              url: "{{ url_for('get_suggestions') }}",
+              dataType: "json",
+              data: {
+                field: fieldType,
+                query: request.term
+              },
+              success: function(data) {
+                response(data);
+              }
+            });
+          },
+          minLength: 2
+        });
+      });
+
+      // Make collapsible sections in help tab clickable
+      $(".help-section h5").click(function() {
+        $(this).find(".fa-chevron-down").toggleClass("fa-chevron-up");
+      });
+      
+      // Initialize results if URL parameters exist on page load
+      if (window.location.search && "{{ active_tab }}" === "explorer") {
+        performSearch();
+      }
+    });
+  </script>
+</body>
+</html>
